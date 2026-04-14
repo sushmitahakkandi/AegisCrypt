@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisCrypt — Encryption</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+
+<body class="bg-gradient-animate">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 w-80"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <span class="text-lg font-bold text-white">AegisCrypt</span>
+            </div>
+        </div>
+        <a href="/dashboard" class="sidebar-link">📊 Dashboard</a>
+        <a href="/encryption" class="sidebar-link active">🔐 Encryption</a>
+        <a href="/alerts" class="sidebar-link">🔔 Alerts <span id="notif-count" class="notif-count hidden">0</span></a>
+        <a href="/audit" class="sidebar-link">📋 Audit Log</a>
+        <div class="mt-auto px-6 pt-4 border-t border-slate-700">
+            <button onclick="logout()" class="btn btn-outline btn-sm w-full justify-center">Logout</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <h1 class="text-2xl font-bold mb-2">Encryption Engine</h1>
+        <p class="text-slate-400 text-sm mb-8">Encrypt and decrypt text or .txt/.csv files with AES-256, RSA-2048, or
+            XOR+Caesar.</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Encrypt Panel -->
+            <div class="glass-card">
+                <h3 class="text-lg font-semibold mb-4">Encrypt</h3>
+                <form id="encrypt-form" onsubmit="handleEncrypt(event)">
+                    <label class="block text-sm text-slate-400 mb-1">Algorithm</label>
+                    <select id="enc-algo" class="input-field mb-4">
+                        <option value="aes">AES-256</option>
+                        <option value="rsa">RSA-2048</option>
+                        <option value="xor">XOR + Caesar</option>
+                    </select>
+
+                    <label class="block text-sm text-slate-400 mb-1">Plain Text</label>
+                    <textarea id="enc-text" class="input-field mb-4 h-28 resize-none"
+                        placeholder="Enter text to encrypt..."></textarea>
+
+                    <label class="block text-sm text-slate-400 mb-1">Or Upload File (text files only)</label>
+                    <input type="file" id="enc-file" accept=".txt,.csv,.md,.json,.xml,.log,.rtf"
+                        class="input-field mb-4 text-sm">
+
+                    <button type="submit" class="btn btn-primary w-full justify-center">
+                        <span id="enc-btn-text">🔒 Encrypt</span>
+                        <span id="enc-spinner" class="spinner hidden"></span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Decrypt Panel -->
+            <div class="glass-card">
+                <h3 class="text-lg font-semibold mb-4">Decrypt</h3>
+                <p class="text-slate-400 text-xs mb-4">Paste the encrypted output and keys from the encrypt result to
+                    decrypt.</p>
+
+                <label class="block text-sm text-slate-400 mb-1">Algorithm</label>
+                <select id="dec-algo" class="input-field mb-4">
+                    <option value="aes">AES-256</option>
+                    <option value="rsa">RSA-2048</option>
+                    <option value="xor">XOR + Caesar</option>
+                </select>
+
+                <label class="block text-sm text-slate-400 mb-1">Encrypted Content</label>
+                <textarea id="dec-encrypted" class="input-field mb-4 h-20 resize-none text-xs"
+                    placeholder="Paste encrypted content..."></textarea>
+
+                <label class="block text-sm text-slate-400 mb-1">Keys (JSON)</label>
+                <textarea id="dec-keys" class="input-field mb-4 h-16 resize-none text-xs"
+                    placeholder='{"key": "...", "iv": "..."}'></textarea>
+
+                <label class="block text-sm text-slate-400 mb-1">Input Type</label>
+                <select id="dec-type" class="input-field mb-4">
+                    <option value="text">Text</option>
+                    <option value="csv">CSV</option>
+                </select>
+
+                <button onclick="handleDecrypt()" class="btn btn-primary w-full justify-center">🔓 Decrypt</button>
+            </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div id="result-panel" class="glass-card hidden mb-8">
+            <h3 class="text-lg font-semibold mb-4">Result</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="bg-slate-800/50 p-3 rounded-lg">
+                    <p class="text-xs text-slate-400 mb-1">Accuracy</p>
+                    <p class="text-2xl font-bold text-green-400" id="res-accuracy">—</p>
+                </div>
+                <div class="bg-slate-800/50 p-3 rounded-lg">
+                    <p class="text-xs text-slate-400 mb-1">Input Hash (SHA-256)</p>
+                    <p class="text-xs font-mono text-slate-300 break-all" id="res-input-hash">—</p>
+                </div>
+                <div class="bg-slate-800/50 p-3 rounded-lg">
+                    <p class="text-xs text-slate-400 mb-1">Output Hash (SHA-256)</p>
+                    <p class="text-xs font-mono text-slate-300 break-all" id="res-output-hash">—</p>
+                </div>
+            </div>
+            <label class="text-sm text-slate-400">Output</label>
+            <pre id="res-output"
+                class="bg-slate-900 p-4 rounded-lg text-xs text-green-300 font-mono overflow-x-auto max-h-64 mt-2"></pre>
+            <label class="text-sm text-slate-400 mt-4 block">Keys (save these for decryption)</label>
+            <pre id="res-keys"
+                class="bg-slate-900 p-4 rounded-lg text-xs text-blue-300 font-mono overflow-x-auto mt-2"></pre>
+        </div>
+
+        <!-- Benchmark Section -->
+        <div class="glass-card">
+            <h3 class="text-lg font-semibold mb-4">📊 CSV Benchmark</h3>
+            <p class="text-slate-400 text-sm mb-4">Upload a CSV to compare AES-256, RSA-2048, and XOR+Caesar
+                performance.</p>
+            <div class="flex gap-4 items-end mb-4">
+                <div class="flex-1">
+                    <label class="block text-sm text-slate-400 mb-1">CSV File</label>
+                    <input type="file" id="bench-file" accept=".csv" class="input-field text-sm">
+                </div>
+                <button onclick="runBenchmark()" class="btn btn-primary" id="bench-btn">Run Benchmark</button>
+            </div>
+            <div id="bench-result" class="hidden">
+                <table class="data-table mb-6">
+                    <thead>
+                        <tr>
+                            <th>Algorithm</th>
+                            <th>Encrypt Time</th>
+                            <th>Decrypt Time</th>
+                            <th>Encrypted Size</th>
+                            <th>Accuracy</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bench-tbody"></tbody>
+                </table>
+                <canvas id="benchChart" height="150"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        if (!requireAuth()) { }
+
+        async function handleEncrypt(e) {
+            e.preventDefault();
+            const spinner = document.getElementById('enc-spinner');
+            const btnText = document.getElementById('enc-btn-text');
+            spinner.classList.remove('hidden');
+            btnText.textContent = 'Encrypting...';
+
+            try {
+                const formData = new FormData();
+                formData.append('algorithm', document.getElementById('enc-algo').value);
+                const text = document.getElementById('enc-text').value;
+                const file = document.getElementById('enc-file').files[0];
+                if (file) formData.append('file', file);
+                else formData.append('text', text);
+
+                const data = await apiFetch('/encryption/encrypt', { method: 'POST', body: formData, headers: {} });
+                showResult(data, 'encrypt');
+                showToast('Encryption successful!', 'success');
+            } catch (err) {
+                showToast(err.error || 'Encryption failed', 'error');
+            } finally {
+                spinner.classList.add('hidden');
+                btnText.textContent = '🔒 Encrypt';
+            }
+        }
+
+        async function handleDecrypt() {
+            try {
+                const keys = JSON.parse(document.getElementById('dec-keys').value);
+                const data = await apiFetch('/encryption/decrypt', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        algorithm: document.getElementById('dec-algo').value,
+                        encrypted: document.getElementById('dec-encrypted').value,
+                        keys: keys,
+                        input_type: document.getElementById('dec-type').value,
+                    }),
+                });
+                showResult(data, 'decrypt');
+                showToast('Decryption successful!', 'success');
+            } catch (err) {
+                showToast(err.error || 'Decryption failed', 'error');
+            }
+        }
+
+        function showResult(data, op) {
+            document.getElementById('result-panel').classList.remove('hidden');
+            document.getElementById('res-accuracy').textContent = (data.accuracy || 100) + '%';
+            document.getElementById('res-input-hash').textContent = data.input_hash || '—';
+            document.getElementById('res-output-hash').textContent = data.output_hash || '—';
+            document.getElementById('res-output').textContent = op === 'encrypt' ? data.encrypted : data.decrypted;
+            document.getElementById('res-keys').textContent = data.keys ? JSON.stringify(data.keys, null, 2) : '—';
+
+            // Auto-fill decrypt panel
+            if (op === 'encrypt') {
+                document.getElementById('dec-algo').value = data.algorithm;
+                document.getElementById('dec-encrypted').value = data.encrypted;
+                document.getElementById('dec-keys').value = JSON.stringify(data.keys);
+                document.getElementById('dec-type').value = data.input_type;
+            }
+        }
+
+        let benchChart;
+        async function runBenchmark() {
+            const file = document.getElementById('bench-file').files[0];
+            if (!file) { showToast('Select a CSV file', 'warning'); return; }
+            const btn = document.getElementById('bench-btn');
+            btn.textContent = 'Running...';
+            btn.disabled = true;
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const data = await apiFetch('/encryption/benchmark', { method: 'POST', body: fd, headers: {} });
+                const r = data.results;
+                document.getElementById('bench-result').classList.remove('hidden');
+                const tbody = document.getElementById('bench-tbody');
+                tbody.innerHTML = Object.entries(r).map(([name, v]) =>
+                    `<tr><td class="font-semibold">${name}</td><td>${v.encrypt_time}s</td><td>${v.decrypt_time}s</td><td>${v.encrypted_size} B</td><td class="text-green-400">${v.accuracy}%</td></tr>`
+                ).join('');
+
+                if (benchChart) benchChart.destroy();
+                benchChart = new Chart(document.getElementById('benchChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(r),
+                        datasets: [
+                            { label: 'Encrypt (s)', data: Object.values(r).map(v => v.encrypt_time), backgroundColor: '#3b82f6' },
+                            { label: 'Decrypt (s)', data: Object.values(r).map(v => v.decrypt_time), backgroundColor: '#10b981' },
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(30,41,59,0.5)' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(30,41,59,0.5)' }, beginAtZero: true }
+                        },
+                        plugins: { legend: { labels: { color: '#94a3b8' } } }
+                    }
+                });
+                showToast('Benchmark complete', 'success');
+            } catch (err) {
+                showToast(err.error || 'Benchmark failed', 'error');
+            } finally {
+                btn.textContent = 'Run Benchmark';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

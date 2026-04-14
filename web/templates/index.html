@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisCrypt — Login</title>
+    <meta name="description" content="AegisCrypt cybersecurity platform login">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body class="bg-gradient-animate flex items-center justify-center min-h-screen">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 w-80"></div>
+
+    <div class="w-full max-w-md p-8">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div
+                class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-lg shadow-blue-500/20">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white">AegisCrypt</h1>
+            <p class="text-slate-400 mt-1">Cybersecurity Platform</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="glass-card">
+            <h2 class="text-lg font-semibold mb-6">Sign In</h2>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-400 mb-1">Email</label>
+                    <input type="email" id="email" class="input-field" placeholder="you@example.com" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm text-slate-400 mb-1">Password</label>
+                    <input type="password" id="password" class="input-field" placeholder="••••••••" required>
+                </div>
+                <button type="submit" id="login-btn" class="btn btn-primary w-full justify-center">
+                    <span id="login-text">Sign In</span>
+                    <span id="login-spinner" class="spinner hidden"></span>
+                </button>
+            </form>
+            <p class="text-center text-slate-400 text-sm mt-4">
+                Don't have an account? <a href="/register" class="text-blue-400 hover:text-blue-300">Register</a>
+            </p>
+        </div>
+
+        <!-- OTP Modal -->
+        <div id="otp-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div class="glass-card w-full max-w-sm mx-4">
+                <h3 class="text-lg font-semibold mb-2">OTP Verification</h3>
+                <p class="text-slate-400 text-sm mb-4">A verification code has been sent. Enter it below.</p>
+                <input type="text" id="otp-input" class="input-field text-center text-2xl tracking-widest" maxlength="6"
+                    placeholder="000000">
+                <button onclick="verifyOTP()" class="btn btn-primary w-full justify-center mt-4">Verify</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const spinner = document.getElementById('login-spinner');
+            const text = document.getElementById('login-text');
+            btn.disabled = true;
+            spinner.classList.remove('hidden');
+            text.textContent = 'Signing in...';
+
+            try {
+                const data = await apiFetch('/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value,
+                        device_fingerprint: navigator.userAgent,
+                    }),
+                });
+
+                if (data.action === 'otp_required') {
+                    setToken(data.token);
+                    document.getElementById('otp-modal').classList.remove('hidden');
+                    showToast('OTP sent — check console or email', 'warning');
+                } else if (data.action === 'allow') {
+                    setToken(data.token);
+                    setUser(data.user);
+                    showToast('Login successful!', 'success');
+                    setTimeout(() => window.location.href = '/dashboard', 500);
+                }
+            } catch (err) {
+                showToast(err.error || 'Login failed', 'error');
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('hidden');
+                text.textContent = 'Sign In';
+            }
+        }
+
+        async function verifyOTP() {
+            const otp = document.getElementById('otp-input').value;
+            try {
+                const data = await apiFetch('/auth/verify-otp', {
+                    method: 'POST',
+                    body: JSON.stringify({ otp_code: otp }),
+                });
+                setToken(data.token);
+                setUser(data.user);
+                showToast('Verified!', 'success');
+                setTimeout(() => window.location.href = '/dashboard', 500);
+            } catch (err) {
+                showToast(err.error || 'Invalid OTP', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

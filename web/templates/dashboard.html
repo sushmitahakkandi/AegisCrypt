@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisCrypt — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body class="bg-gradient-animate">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 w-80"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <span class="text-lg font-bold text-white">AegisCrypt</span>
+            </div>
+        </div>
+        <a href="/dashboard" class="sidebar-link active">📊 Dashboard</a>
+        <a href="/encryption" class="sidebar-link">🔐 Encryption</a>
+        <a href="/alerts" class="sidebar-link">
+            🔔 Alerts
+            <span id="notif-count" class="notif-count hidden">0</span>
+        </a>
+        <a href="/audit" class="sidebar-link">📋 Audit Log</a>
+        <div class="mt-auto px-6 pt-4 border-t border-slate-700">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold"
+                    id="user-avatar">U</div>
+                <span class="text-sm text-slate-300" id="user-display">User</span>
+            </div>
+            <button onclick="logout()" class="btn btn-outline btn-sm w-full mt-3 justify-center">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold">Security Dashboard</h1>
+                <p class="text-slate-400 text-sm">Real-time threat monitoring</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="triggerModelRetrain(this)" class="btn btn-primary btn-sm flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Retrain Model
+                </button>
+                <div
+                    class="flex items-center gap-3 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                    <span class="pulse-dot green" id="status-dot"></span>
+                    <span class="text-sm font-medium text-slate-300">Live</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Threat Level Banner -->
+        <div id="threat-banner" class="glass-card stat-card mb-6 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm text-slate-400">Current Threat Level</p>
+                <p class="text-xl font-bold" id="threat-level">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass-card stat-card">
+                <p class="text-sm text-slate-400 mb-1">Login Attempts Today</p>
+                <p class="text-3xl font-bold" id="stat-logins">—</p>
+                <p class="text-xs text-slate-500 mt-1">Failed: <span id="stat-failed">—</span></p>
+            </div>
+            <div class="glass-card stat-card danger">
+                <p class="text-sm text-slate-400 mb-1">Blocked IPs</p>
+                <p class="text-3xl font-bold text-red-400" id="stat-blocked">—</p>
+            </div>
+            <div class="glass-card stat-card">
+                <p class="text-sm text-slate-400 mb-1">Encryption Sessions</p>
+                <p class="text-3xl font-bold text-blue-400" id="stat-encryption">—</p>
+            </div>
+            <div class="glass-card stat-card warning">
+                <p class="text-sm text-slate-400 mb-1">Unresolved Alerts</p>
+                <p class="text-3xl font-bold text-yellow-400" id="stat-alerts">—</p>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="glass-card">
+                <h3 class="text-lg font-semibold mb-4">Login Attempts (24h)</h3>
+                <canvas id="hourlyChart" height="200"></canvas>
+            </div>
+            <div class="glass-card">
+                <h3 class="text-lg font-semibold mb-4">Threat Distribution</h3>
+                <canvas id="threatChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Events -->
+        <div class="glass-card">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Recent Security Events</h3>
+                <span class="text-xs text-slate-400">Auto-updates every 5s</span>
+            </div>
+            <div id="events-list" class="space-y-2 max-h-96 overflow-y-auto">
+                <p class="text-slate-400 text-sm">Loading events...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+
+        let hourlyChart, threatChart;
+        let socket;
+
+        function initWebSocket() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            // Connect to /alerts namespace
+            socket = io('/alerts', {
+                auth: { token: token },
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                console.log('Connected to real-time alerts server');
+                document.getElementById('status-dot').classList.remove('red', 'yellow');
+                document.getElementById('status-dot').classList.add('green');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from real-time alerts server');
+                document.getElementById('status-dot').classList.remove('green');
+                document.getElementById('status-dot').classList.add('red');
+            });
+
+            socket.on('new_alert', (alertData) => {
+                console.log('New Alert Received:', alertData);
+                showToast(`🚨 Critical Alert: ${alertData.message}`, 'error', true);
+                // Also bump the alert counter and refresh stats
+                loadDashboard();
+                loadEvents();
+            });
+        }
+
+        async function loadDashboard() {
+            try {
+                const data = await apiFetch('/dashboard/stats');
+                document.getElementById('stat-logins').textContent = data.login_attempts_today;
+                document.getElementById('stat-failed').textContent = data.failed_attempts_today;
+                document.getElementById('stat-blocked').textContent = data.blocked_ips;
+                document.getElementById('stat-encryption').textContent = data.encryption_sessions_today;
+                document.getElementById('stat-alerts').textContent = data.unresolved_alerts;
+
+                // Threat level
+                const tl = document.getElementById('threat-level');
+                tl.textContent = data.threat_level.toUpperCase();
+                const colors = { low: 'text-green-400', medium: 'text-yellow-400', high: 'text-orange-400', critical: 'text-red-400' };
+                tl.className = 'text-xl font-bold ' + (colors[data.threat_level] || '');
+
+                // Hourly chart
+                const hours = Array.from({ length: 24 }, (_, i) => i + ':00');
+                const hourData = hours.map((_, i) => data.hourly_attempts[String(i)] || 0);
+
+                if (hourlyChart) hourlyChart.destroy();
+                hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'Attempts',
+                            data: hourData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(30,41,59,0.5)' } },
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(30,41,59,0.5)' }, beginAtZero: true }
+                        }
+                    }
+                });
+
+                // Threat chart
+                if (threatChart) threatChart.destroy();
+                threatChart = new Chart(document.getElementById('threatChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Login Attempts', 'Blocked IPs', 'Alerts', 'Encryption'],
+                        datasets: [{
+                            data: [data.login_attempts_today, data.blocked_ips, data.unresolved_alerts, data.encryption_sessions_today],
+                            backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981'],
+                            borderWidth: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            } catch (e) { console.error('Dashboard load error:', e); }
+        }
+
+        async function loadEvents() {
+            try {
+                const data = await apiFetch('/dashboard/events');
+                const list = document.getElementById('events-list');
+                if (!data.events || data.events.length === 0) {
+                    list.innerHTML = '<p class="text-slate-400 text-sm">No events yet.</p>';
+                    return;
+                }
+                list.innerHTML = data.events.map(ev => {
+                    const sevClass = { critical: 'badge-critical', warning: 'badge-high', info: 'badge-info' }[ev.severity] || 'badge-info';
+                    return `<div class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors">
+                        <span class="badge ${sevClass}">${ev.severity}</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium truncate">${ev.event_type}</p>
+                            <p class="text-xs text-slate-400 truncate">${ev.details || ''}</p>
+                        </div>
+                        <span class="text-xs text-slate-500 whitespace-nowrap">${ev.created_at}</span>
+                    </div>`;
+                }).join('');
+            } catch (e) { console.error('Events load error:', e); }
+        }
+
+        // Initial load + polling
+        loadDashboard();
+        loadEvents();
+        initWebSocket(); // Initialize Socket.IO connection
+
+        setInterval(loadDashboard, 5000);
+        setInterval(loadEvents, 5000);
+
+        // Set user avatar initial
+        const user = getUser();
+        if (user) {
+            const av = document.getElementById('user-avatar');
+            if (av) av.textContent = user.username[0].toUpperCase();
+        }
+    </script>
+</body>
+
+</html>

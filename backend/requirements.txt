@@ -1,0 +1,13 @@
+flask==3.1.0
+flask-cors==5.0.1
+flask-jwt-extended==4.7.1
+psycopg2-binary==2.9.10
+bcrypt==4.2.1
+cryptography==44.0.0
+scikit-learn==1.6.1
+joblib==1.4.2
+reportlab==4.2.5
+python-dotenv==1.0.1
+requests==2.32.3
+Flask-SocketIO==5.3.6
+eventlet==0.35.2

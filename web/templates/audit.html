@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisCrypt — Audit Log</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body class="bg-gradient-animate">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 w-80"></div>
+
+    <nav class="sidebar">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <span class="text-lg font-bold text-white">AegisCrypt</span>
+            </div>
+        </div>
+        <a href="/dashboard" class="sidebar-link">📊 Dashboard</a>
+        <a href="/encryption" class="sidebar-link">🔐 Encryption</a>
+        <a href="/alerts" class="sidebar-link">🔔 Alerts <span id="notif-count" class="notif-count hidden">0</span></a>
+        <a href="/audit" class="sidebar-link active">📋 Audit Log</a>
+        <div class="mt-auto px-6 pt-4 border-t border-slate-700">
+            <button onclick="logout()" class="btn btn-outline btn-sm w-full justify-center">Logout</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold">Audit Log</h1>
+                <p class="text-slate-400 text-sm">Tamper-proof security event log with SHA-256 hash chain</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="verifyIntegrity()" class="btn btn-outline btn-sm">🔍 Verify Integrity</button>
+                <a id="csv-export-link" class="btn btn-outline btn-sm cursor-pointer" onclick="exportCSV()">📥 Export
+                    CSV</a>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-card mb-6">
+            <div class="flex flex-wrap gap-4 items-end">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Severity</label>
+                    <select id="filter-severity" class="input-field" style="width:150px">
+                        <option value="">All</option>
+                        <option value="critical">Critical</option>
+                        <option value="warning">Warning</option>
+                        <option value="info">Info</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">From Date</label>
+                    <input type="date" id="filter-from" class="input-field" style="width:170px">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">To Date</label>
+                    <input type="date" id="filter-to" class="input-field" style="width:170px">
+                </div>
+                <button onclick="loadLogs(1)" class="btn btn-primary btn-sm">Filter</button>
+            </div>
+        </div>
+
+        <!-- Integrity Banner -->
+        <div id="integrity-banner" class="hidden glass-card mb-4 flex items-center gap-3"></div>
+
+        <!-- Log Table -->
+        <div class="glass-card overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Event</th>
+                        <th>Severity</th>
+                        <th>IP</th>
+                        <th>Details</th>
+                        <th>Hash</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody id="log-tbody">
+                    <tr>
+                        <td colspan="7" class="text-slate-400 text-sm text-center py-8">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-4">
+            <p class="text-sm text-slate-400"><span id="total-count">0</span> total entries</p>
+            <div class="flex gap-2" id="pagination"></div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        if (!requireAuth()) { }
+
+        let currentPage = 1;
+
+        async function loadLogs(page = 1) {
+            currentPage = page;
+            const severity = document.getElementById('filter-severity').value;
+            const dateFrom = document.getElementById('filter-from').value;
+            const dateTo = document.getElementById('filter-to').value;
+            let url = `/audit-logs?page=${page}&per_page=20`;
+            if (severity) url += `&severity=${severity}`;
+            if (dateFrom) url += `&date_from=${dateFrom}`;
+            if (dateTo) url += `&date_to=${dateTo}`;
+
+            try {
+                const data = await apiFetch(url);
+                const tbody = document.getElementById('log-tbody');
+                document.getElementById('total-count').textContent = data.total;
+
+                if (!data.logs || data.logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-slate-400 text-sm text-center py-8">No logs found</td></tr>';
+                    return;
+                }
+                const sevClass = { critical: 'badge-critical', warning: 'badge-high', info: 'badge-info' };
+                tbody.innerHTML = data.logs.map(l => `
+                    <tr>
+                        <td class="text-slate-500">#${l.id}</td>
+                        <td class="font-medium">${l.event_type}</td>
+                        <td><span class="badge ${sevClass[l.severity] || 'badge-info'}">${l.severity}</span></td>
+                        <td class="text-xs text-slate-400">${l.ip_address || '—'}</td>
+                        <td class="text-xs text-slate-400 max-w-xs truncate">${l.details || '—'}</td>
+                        <td class="text-xs font-mono text-slate-500">${l.data_hash ? l.data_hash.slice(0, 12) + '...' : '—'}</td>
+                        <td class="text-xs text-slate-500 whitespace-nowrap">${l.created_at}</td>
+                    </tr>
+                `).join('');
+
+                // Pagination
+                const pag = document.getElementById('pagination');
+                pag.innerHTML = '';
+                for (let i = 1; i <= data.total_pages; i++) {
+                    const btn = document.createElement('button');
+                    btn.textContent = i;
+                    btn.className = `btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline'}`;
+                    btn.onclick = () => loadLogs(i);
+                    pag.appendChild(btn);
+                }
+            } catch (e) { showToast('Failed to load logs', 'error'); }
+        }
+
+        async function verifyIntegrity() {
+            try {
+                const data = await apiFetch('/audit-logs/verify');
+                const banner = document.getElementById('integrity-banner');
+                banner.classList.remove('hidden');
+                if (data.integrity_valid) {
+                    banner.innerHTML = '<span class="pulse-dot green"></span><span class="text-green-400 font-semibold">✓ Hash chain integrity verified — all records intact</span>';
+                } else {
+                    banner.innerHTML = `<span class="pulse-dot red"></span><span class="text-red-400 font-semibold">✗ Integrity broken at log #${data.broken_at_id}</span>`;
+                }
+            } catch (e) { showToast('Verification failed', 'error'); }
+        }
+
+        function exportCSV() {
+            const token = getToken();
+            window.open(API_BASE + '/audit-logs/export/csv?token=' + token, '_blank');
+        }
+
+        loadLogs();
+    </script>
+</body>
+
+</html>

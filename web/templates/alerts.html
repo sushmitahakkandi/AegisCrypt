@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisCrypt — Alerts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body class="bg-gradient-animate">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 w-80"></div>
+
+    <nav class="sidebar">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <span class="text-lg font-bold text-white">AegisCrypt</span>
+            </div>
+        </div>
+        <a href="/dashboard" class="sidebar-link">📊 Dashboard</a>
+        <a href="/encryption" class="sidebar-link">🔐 Encryption</a>
+        <a href="/alerts" class="sidebar-link active">🔔 Alerts <span id="notif-count"
+                class="notif-count hidden">0</span></a>
+        <a href="/audit" class="sidebar-link">📋 Audit Log</a>
+        <div class="mt-auto px-6 pt-4 border-t border-slate-700">
+            <button onclick="logout()" class="btn btn-outline btn-sm w-full justify-center">Logout</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold">Security Alerts</h1>
+                <p class="text-slate-400 text-sm">Monitor and resolve security alerts</p>
+            </div>
+            <button onclick="loadAlerts()" class="btn btn-outline btn-sm">🔄 Refresh</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="glass-card stat-card danger">
+                <p class="text-sm text-slate-400 mb-1">Critical</p>
+                <p class="text-3xl font-bold text-red-400" id="count-critical">0</p>
+            </div>
+            <div class="glass-card stat-card warning">
+                <p class="text-sm text-slate-400 mb-1">High / Warning</p>
+                <p class="text-3xl font-bold text-yellow-400" id="count-high">0</p>
+            </div>
+            <div class="glass-card stat-card success">
+                <p class="text-sm text-slate-400 mb-1">Resolved</p>
+                <p class="text-3xl font-bold text-green-400" id="count-resolved">0</p>
+            </div>
+        </div>
+
+        <!-- Alert List -->
+        <div class="glass-card">
+            <div id="alerts-list" class="space-y-3">
+                <p class="text-slate-400 text-sm">Loading alerts...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        if (!requireAuth()) { }
+
+        async function loadAlerts() {
+            try {
+                const data = await apiFetch('/alerts');
+                const list = document.getElementById('alerts-list');
+                const alerts = data.alerts || [];
+
+                document.getElementById('count-critical').textContent = alerts.filter(a => a.severity === 'critical' && !a.resolved).length;
+                document.getElementById('count-high').textContent = alerts.filter(a => ['high', 'warning'].includes(a.severity) && !a.resolved).length;
+                document.getElementById('count-resolved').textContent = alerts.filter(a => a.resolved).length;
+
+                if (alerts.length === 0) {
+                    list.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No alerts 🎉</p>';
+                    return;
+                }
+                list.innerHTML = alerts.map(a => {
+                    const sevColors = { critical: 'badge-critical', high: 'badge-high', warning: 'badge-high', medium: 'badge-medium', low: 'badge-low', info: 'badge-info' };
+                    const borderColors = { critical: 'border-red-500', high: 'border-orange-500', warning: 'border-yellow-500' };
+                    return `<div class="flex items-start gap-4 p-4 rounded-lg bg-slate-800/50 border-l-4 ${borderColors[a.severity] || 'border-slate-600'} ${a.resolved ? 'opacity-50' : ''}">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="badge ${sevColors[a.severity] || 'badge-info'}">${a.severity}</span>
+                                <span class="text-xs text-slate-500">${a.created_at}</span>
+                                ${a.resolved ? '<span class="badge badge-low">Resolved</span>' : ''}
+                            </div>
+                            <p class="text-sm font-medium">${a.alert_type}</p>
+                            <p class="text-xs text-slate-400">${a.message}</p>
+                            ${a.source_ip ? '<p class="text-xs text-slate-500 mt-1">IP: ' + a.source_ip + '</p>' : ''}
+                        </div>
+                        ${!a.resolved ? `<button onclick="resolveAlert(${a.id})" class="btn btn-outline btn-sm whitespace-nowrap">✓ Resolve</button>` : ''}
+                    </div>`;
+                }).join('');
+            } catch (e) { showToast('Failed to load alerts', 'error'); }
+        }
+
+        async function resolveAlert(id) {
+            try {
+                await apiFetch('/alerts/' + id + '/resolve', { method: 'PATCH' });
+                showToast('Alert resolved', 'success');
+                loadAlerts();
+            } catch (e) { showToast('Failed to resolve', 'error'); }
+        }
+
+        loadAlerts();
+        setInterval(loadAlerts, 10000);
+    </script>
+</body>
+
+</html>
